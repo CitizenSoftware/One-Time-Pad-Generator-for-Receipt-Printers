@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>One-Time Pad Generator — Receipt Style</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --card: #ffffff;
+      --border: #d1d5db;
+      --accent: #2563eb;
+      --text: #111827;
+      --text-light: #6b7280;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .container {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      font-size: 1rem;
+      color: var(--text-light);
+    }
+
+    .panel {
+      background: var(--card);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 2rem;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      max-width: 450px;
+      width: 100%;
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .form-group label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 0.7rem;
+      font-size: 1rem;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      transition: border-color 0.2s;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .button-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-top: 0.5rem;
+    }
+
+    button {
+      padding: 0.9rem 1.25rem;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    .btn-key {
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
+      color: white;
+    }
+
+    .btn-msg {
+      background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+      color: white;
+    }
+
+    .btn-secondary {
+      background: #e5e7eb;
+      color: var(--text);
+    }
+
+    .btn-secondary:hover {
+      background: #d1d5db;
+    }
+
+    @media (max-width: 768px) {
+      .panel {
+        padding: 1.5rem;
+        margin: 1rem;
+      }
+
+      h1 {
+        font-size: 1.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>🔐 One-Time Pad Generator</h1>
+    <p class="subtitle">Cryptographically secure receipt-style OTP sheets</p>
+  </header>
+
+  <div class="panel">
+    <div class="controls">
+      <div class="form-group">
+        <label for="otpnum">Starting OTP Number</label>
+        <input type="number" id="otpnum" value="1" min="1" max="999">
+      </div>
+
+      <div class="form-group">
+        <label for="nkeys">Number of OTP Sheets</label>
+        <input type="number" id="nkeys" value="1" min="1" max="20">
+      </div>
+
+      <div class="button-group">
+        <button class="btn-key" onclick="generate(true)">
+          📄 Generate & Print Key Receipts
+        </button>
+        <button class="btn-msg" onclick="generate(false)">
+          📝 Generate & Print Message Worksheets
+        </button>
+        <button class="btn-secondary" onclick="downloadTxt()">
+          💾 Download Last as .txt
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const { jsPDF } = window.jspdf;
+
+let currentType = '';
+let currentContent = '';
+
+function generateOTPCopy(padNum, copy, isKey) {
+  const digits = 255; // Fixed at 51 groups × 5 digits = 255 digits
+  let output = '';
+  
+  // Header
+  output += '===========================\n';
+  output += `   OTP #${padNum} - COPY ${copy}/2\n`;
+  output += '===========================\n\n';
+  
+  if (isKey) {
+    // Key sheet instructions
+    output += 'SETUP:\n';
+    output += '1. Print both copies\n';
+    output += '2. Keep one copy secure\n';
+    output += '3. Give one to recipient\n';
+    output += '4. Use same OTP number\n\n';
+    
+    output += 'TO ENCRYPT:\n';
+    output += '1. Convert letters to\n';
+    output += '   numbers (see table)\n';
+    output += '2. Add message digit +\n';
+    output += '   key digit (mod 10)\n';
+    output += '3. Send only ciphertext\n';
+    output += '4. DESTROY this copy\n\n';
+    
+    output += 'TO DECRYPT:\n';
+    output += '1. Subtract key from\n';
+    output += '   ciphertext (mod 10)\n';
+    output += '2. Convert to letters\n';
+    output += '3. DESTROY this copy\n\n';
+    
+    output += 'ALPHABET TABLE:\n';
+    output += 'A=00 B=01 C=02 D=03\n';
+    output += 'E=04 F=05 G=06 H=07\n';
+    output += 'I=08 J=09 K=10 L=11\n';
+    output += 'M=12 N=13 O=14 P=15\n';
+    output += 'Q=16 R=17 S=18 T=19\n';
+    output += 'U=20 V=21 W=22 X=23\n';
+    output += 'Y=24 Z=25 SPACE=26\n\n';
+    
+    output += '===========================\n';
+    output += 'KEY DIGITS:\n';
+    output += '===========================\n\n';
+  } else {
+    // Message worksheet
+    output += 'MESSAGE WORKSHEET\n';
+    output += 'Translate only\n';
+    output += 'Destroy after encryption\n\n';
+    output += '===========================\n';
+    output += 'PLAINTEXT NUMBERS:\n';
+    output += '===========================\n\n';
+  }
+  
+  // Generate random digits
+  const randomBytes = new Uint8Array(digits);
+  crypto.getRandomValues(randomBytes);
+  const pad = Array.from(randomBytes, b => b % 10).join('');
+  
+  // Format in groups of 5, 3 groups per line (15 digits per line)
+  const groups = pad.match(/.{1,5}/g) || [];
+  
+  for (let j = 0; j < groups.length; j++) {
+    const lineNum = j + 1;
+    const num = String(lineNum).padStart(3, ' ');
+    const keyDigits = isKey ? groups[j] : '_____';
+    output += `${num}. ${keyDigits}`;
+    
+    // New line after every 3 groups (or at end)
+    if ((j + 1) % 3 === 0 || j === groups.length - 1) {
+      output += '\n';
+    } else {
+      output += ' ';
+    }
+  }
+  
+  output += '\n';
+  
+  if (!isKey) {
+    output += '===========================\n';
+    output += '!!! DESTROY AFTER USE !!!\n';
+  }
+  
+  output += '===========================\n';
+  output += `End OTP #${padNum} Copy ${copy}\n`;
+  output += '===========================\n';
+  
+  return output;
+}
+
+function generateOTP(isKey) {
+  const start = parseInt(document.getElementById('otpnum').value) || 1;
+  const count = parseInt(document.getElementById('nkeys').value) || 1;
+  
+  let fullOutput = '';
+  
+  for (let i = 0; i < count; i++) {
+    const padNum = start + i;
+    
+    // Generate 2 copies per sheet
+    for (let copy = 1; copy <= 2; copy++) {
+      if (fullOutput) fullOutput += '\n'.repeat(6);
+      fullOutput += generateOTPCopy(padNum, copy, isKey);
+    }
+  }
+  
+  return fullOutput;
+}
+
+function generate(isKey) {
+  currentType = isKey ? 'key' : 'message';
+  
+  // Get current OTP number
+  const currentOTP = parseInt(document.getElementById('otpnum').value) || 1;
+  const count = parseInt(document.getElementById('nkeys').value) || 1;
+  
+  // Generate content
+  currentContent = generateOTP(isKey);
+  
+  // Auto-increment the OTP number for next generation
+  const nextOTP = currentOTP + count;
+  document.getElementById('otpnum').value = nextOTP > 999 ? 1 : nextOTP;
+  
+  // Auto-generate PDF and open print dialog
+  createPDF(currentOTP, count, isKey);
+}
+
+function createPDF(startNum, count, isKey) {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: [80, 297]  // Initial page - will be replaced
+  });
+  
+  doc.setFont('courier', 'normal');
+  doc.setFontSize(8.5);
+  
+  const marginLeft = 2.5;
+  const marginTop = 6;
+  const marginBottom = 6;
+  const lineHeight = 3.5;
+  
+  let isFirstPage = true;
+  
+  // Generate each copy on its own page
+  for (let i = 0; i < count; i++) {
+    const padNum = startNum + i;
+    
+    for (let copy = 1; copy <= 2; copy++) {
+      // Generate content for this copy
+      const copyContent = generateOTPCopy(padNum, copy, isKey);
+      const lines = copyContent.split('\n');
+      
+      // Calculate exact height needed for this copy
+      const contentHeight = lines.length * lineHeight;
+      const pageHeight = marginTop + contentHeight + marginBottom;
+      
+      // Add new page with custom height
+      if (isFirstPage) {
+        // Replace the initial page
+        doc.deletePage(1);
+        doc.addPage([80, pageHeight]);
+        isFirstPage = false;
+      } else {
+        doc.addPage([80, pageHeight]);
+      }
+      
+      // Print content on this page
+      let y = marginTop;
+      for (let line of lines) {
+        doc.text(line, marginLeft, y);
+        y += lineHeight;
+      }
+    }
+  }
+  
+  // Convert to blob and open in new window
+  const pdfBlob = doc.output('blob');
+  const pdfUrl = URL.createObjectURL(pdfBlob);
+  
+  const printWindow = window.open(pdfUrl, '_blank');
+  
+  if (printWindow) {
+    printWindow.addEventListener('load', function() {
+      setTimeout(() => {
+        printWindow.print();
+      }, 250);
+    });
+  } else {
+    alert('Please allow popups to print the PDF');
+  }
+}
+
+function downloadTxt() {
+  if (!currentContent) {
+    alert('Generate some content first!');
+    return;
+  }
+  
+  const otpNum = parseInt(document.getElementById('otpnum').value) - parseInt(document.getElementById('nkeys').value);
+  const date = new Date().toISOString().slice(0, 10);
+  const filename = `otp-${otpNum}-${currentType}-${date}.txt`;
+  
+  const blob = new Blob([currentContent], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+
+</body>
+</html>
