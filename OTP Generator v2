@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>One-Time Pad Generator — Receipt Style</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --card: #ffffff;
+      --border: #d1d5db;
+      --accent: #2563eb;
+      --text: #111827;
+      --text-light: #6b7280;
+      --warning: #dc2626;
+      --warning-bg: #fef2f2;
+      --entropy: #7c3aed;
+      --entropy-bg: #f5f3ff;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .container {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 1.5rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 0.25rem;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      color: var(--text-light);
+    }
+
+    .content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .panel {
+      background: var(--card);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .checklist-box {
+      background: var(--warning-bg);
+      border: 2px solid var(--warning);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .checklist-title {
+      font-weight: 700;
+      color: var(--warning);
+      margin-bottom: 0.75rem;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .checklist-item {
+      display: flex;
+      align-items: start;
+      margin-bottom: 0.5rem;
+      font-size: 0.85rem;
+    }
+
+    .checklist-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .checklist-item input[type="checkbox"] {
+      margin-right: 0.5rem;
+      margin-top: 0.2rem;
+      flex-shrink: 0;
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    .checklist-item label {
+      cursor: pointer;
+      color: #7f1d1d;
+      line-height: 1.4;
+    }
+
+    .entropy-box {
+      background: var(--entropy-bg);
+      border: 2px solid var(--entropy);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: auto;
+    }
+
+    .entropy-title {
+      font-weight: 700;
+      color: var(--entropy);
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .entropy-canvas {
+      width: 100%;
+      height: 120px;
+      border: 2px dashed var(--entropy);
+      border-radius: 6px;
+      cursor: crosshair;
+      background: white;
+    }
+
+    .entropy-status {
+      margin-top: 0.5rem;
+      font-size: 0.8rem;
+      color: #6b21a8;
+      text-align: center;
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .form-group label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 0.65rem;
+      font-size: 1rem;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      transition: border-color 0.2s;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .button-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.7rem;
+      margin-top: 0.5rem;
+    }
+
+    button {
+      padding: 0.85rem 1.25rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    button:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-key {
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
+      color: white;
+    }
+
+    .btn-msg {
+      background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+      color: white;
+    }
+
+    @media (max-width: 1024px) {
+      .content {
+        grid-template-columns: 1fr;
+        overflow-y: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>🔐 One-Time Pad Generator</h1>
+    <p class="subtitle">Cryptographically secure receipt-style OTP sheets</p>
+  </header>
+
+  <div class="content">
+    <!-- Left Panel: Security Checklist -->
+    <div class="panel">
+      <div class="checklist-box">
+        <div class="checklist-title">⚠ Before Generating — Confirm All:</div>
+        <div class="checklist-item">
+          <input type="checkbox" id="check1">
+          <label for="check1">Operating system used to print the OTPs is Tails OS (without persistence)</label>
+        </div>
+        <div class="checklist-item">
+          <input type="checkbox" id="check2">
+          <label for="check2">The only data mounted by Tails OS is on a separate USB which is encrypted</label>
+        </div>
+        <div class="checklist-item">
+          <input type="checkbox" id="check3">
+          <label for="check3">The laptop must have the Wi-Fi + Bluetooth chip removed to airgap securely</label>
+        </div>
+        <div class="checklist-item">
+          <input type="checkbox" id="check4">
+          <label for="check4">The laptop must be destroyed after the final use to prevent sensitive info leaks</label>
+        </div>
+      </div>
+
+      <div class="entropy-box">
+        <div class="entropy-title">🎲 Mouse Entropy Collector</div>
+        <canvas id="entropyCanvas" class="entropy-canvas"></canvas>
+        <div class="entropy-status" id="entropyStatus">Move mouse to collect randomness (0 bits)</div>
+      </div>
+    </div>
+
+    <!-- Right Panel: Controls -->
+    <div class="panel">
+      <div class="controls">
+        <div class="form-group">
+          <label for="otpnum">Starting OTP Number</label>
+          <input type="text" id="otpnum" value="1" inputmode="numeric" pattern="[0-9]*">
+        </div>
+
+        <div class="form-group">
+          <label for="nkeys">Number of OTP Sheets</label>
+          <input type="number" id="nkeys" value="1" min="1" max="20">
+        </div>
+
+        <div class="button-group">
+          <button class="btn-key" id="btnKey" onclick="generate(true)" disabled>
+            📄 Generate & Print Key Receipts
+          </button>
+          <button class="btn-msg" id="btnMsg" onclick="generate(false)" disabled>
+            📝 Generate & Print Message Worksheets
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const { jsPDF } = window.jspdf;
+
+let currentType = '';
+let currentContent = '';
+let lastSavedOTPNum = null;
+
+// Entropy collection
+let entropyPool = [];
+let entropyBits = 0;
+const ENTROPY_TARGET = 256; // bits
+let canvas, ctx;
+
+// Initialize canvas for entropy visualization
+window.addEventListener('DOMContentLoaded', function() {
+  canvas = document.getElementById('entropyCanvas');
+  ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+  
+  // Clear canvas
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  // Mouse movement entropy collection
+  let lastX = -1, lastY = -1, lastTime = 0;
+  
+  canvas.addEventListener('mousemove', function(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const time = Date.now();
+    
+    if (lastX !== -1) {
+      // Calculate entropy from movement
+      const dx = x - lastX;
+      const dy = y - lastY;
+      const dt = time - lastTime;
+      
+      // Collect multiple sources of entropy
+      entropyPool.push(x & 0xFF);
+      entropyPool.push(y & 0xFF);
+      entropyPool.push(dx & 0xFF);
+      entropyPool.push(dy & 0xFF);
+      entropyPool.push(dt & 0xFF);
+      entropyPool.push((time & 0xFF));
+      
+      // Estimate bits of entropy (conservative)
+      entropyBits = Math.min(ENTROPY_TARGET, entropyBits + 2);
+      
+      // Draw on canvas
+      ctx.beginPath();
+      ctx.moveTo(lastX, lastY);
+      ctx.lineTo(x, y);
+      ctx.strokeStyle = `hsl(${(entropyBits / ENTROPY_TARGET) * 280}, 70%, 50%)`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      
+      // Update status with quality indicator
+      let quality = 'WEAK';
+      let color = '#dc2626';
+      if (entropyBits >= ENTROPY_TARGET) {
+        quality = 'STRONG';
+        color = '#059669';
+      } else if (entropyBits >= ENTROPY_TARGET * 0.5) {
+        quality = 'GOOD';
+        color = '#f59e0b';
+      }
+      
+      const statusEl = document.getElementById('entropyStatus');
+      statusEl.textContent = `${quality}: ${entropyBits}/${ENTROPY_TARGET} bits collected`;
+      statusEl.style.color = color;
+      statusEl.style.fontWeight = '700';
+      
+      // Update button state when entropy changes
+      updateButtonState();
+    }
+    
+    lastX = x;
+    lastY = y;
+    lastTime = time;
+  });
+  
+  // Keyboard timing entropy collection
+  let lastKeyTime = 0;
+  document.addEventListener('keydown', function(e) {
+    const time = Date.now();
+    if (lastKeyTime > 0) {
+      const dt = time - lastKeyTime;
+      // Collect timing entropy from keypresses
+      entropyPool.push(dt & 0xFF);
+      entropyPool.push((dt >> 8) & 0xFF);
+      entropyPool.push(e.keyCode & 0xFF);
+      entropyBits = Math.min(ENTROPY_TARGET, entropyBits + 1);
+      updateButtonState();
+    }
+    lastKeyTime = time;
+  });
+  
+  // Load saved OTP number from localStorage
+  const saved = localStorage.getItem('otpLastNumber');
+  if (saved) {
+    document.getElementById('otpnum').value = saved;
+    lastSavedOTPNum = parseInt(saved);
+  } else {
+    lastSavedOTPNum = 1;
+  }
+  
+  // Check all checkboxes on change
+  const checkboxes = ['check1', 'check2', 'check3', 'check4'];
+  checkboxes.forEach(id => {
+    document.getElementById(id).addEventListener('change', updateButtonState);
+  });
+  
+  updateButtonState();
+});
+
+// Monitor manual changes to OTP number input
+document.addEventListener('DOMContentLoaded', function() {
+  const otpInput = document.getElementById('otpnum');
+  
+  // Validate on keypress - only allow numbers
+  otpInput.addEventListener('keypress', function(e) {
+    // Allow Enter key to trigger confirmation
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      this.blur(); // Trigger the blur event
+      return;
+    }
+    
+    // Only allow digits
+    if (!/[0-9]/.test(e.key)) {
+      e.preventDefault();
+    }
+  });
+  
+  // Trigger confirmation when Enter is pressed or field loses focus
+  const confirmChange = function() {
+    const newValue = parseInt(this.value) || 1;
+    
+    // Clamp between 1 and 999
+    const clampedValue = Math.max(1, Math.min(999, newValue));
+    if (newValue !== clampedValue) {
+      this.value = clampedValue;
+    }
+    
+    const savedValue = lastSavedOTPNum;
+    
+    if (clampedValue !== savedValue) {
+      const confirmed = confirm(
+        'This makes it possible for you to miscommunicate based on repeating OTP key numbers. Are you sure you want to reset the count?'
+      );
+      
+      if (confirmed) {
+        lastSavedOTPNum = clampedValue;
+        localStorage.setItem('otpLastNumber', clampedValue);
+        this.value = clampedValue;
+      } else {
+        // Revert to last saved value
+        this.value = savedValue;
+      }
+    }
+  };
+  
+  otpInput.addEventListener('blur', confirmChange);
+});
+
+function updateButtonState() {
+  const allChecked = 
+    document.getElementById('check1').checked &&
+    document.getElementById('check2').checked &&
+    document.getElementById('check3').checked &&
+    document.getElementById('check4').checked;
+  
+  // Require minimum entropy (256 bits)
+  const hasEnoughEntropy = entropyBits >= ENTROPY_TARGET;
+  
+  document.getElementById('btnKey').disabled = !(allChecked && hasEnoughEntropy);
+  document.getElementById('btnMsg').disabled = !(allChecked && hasEnoughEntropy);
+}
+
+// Mix entropy pool with crypto.getRandomValues for enhanced randomness
+function getEnhancedRandomBytes(length) {
+  const randomBytes = new Uint8Array(length);
+  crypto.getRandomValues(randomBytes);
+  
+  // If we have collected entropy, mix it in
+  if (entropyPool.length > 0) {
+    for (let i = 0; i < length && i < entropyPool.length; i++) {
+      // XOR the entropy with the random bytes
+      randomBytes[i] ^= entropyPool[i % entropyPool.length];
+    }
+  }
+  
+  return randomBytes;
+}
+
+function generateOTPCopy(padNum, copy, isKey) {
+  const digits = 255; // Fixed at 51 groups × 5 digits = 255 digits
+  let output = '';
+  
+  // Header
+  if (isKey) {
+    output += '===========================\n';
+    output += `   OTP #${padNum} - COPY ${copy}/2\n`;
+    output += '===========================\n\n';
+  } else {
+    output += '===========================\n';
+    output += '   MESSAGE WORKSHEET\n';
+    output += '===========================\n\n';
+  }
+  
+  if (isKey) {
+    // Key sheet instructions
+    output += 'SETUP:\n';
+    output += '1. Print both copies\n';
+    output += '2. Keep one copy secure\n';
+    output += '3. Give one to recipient\n';
+    output += '4. Use same OTP number\n\n';
+    
+    output += 'TO ENCRYPT:\n';
+    output += '1. Convert letters to\n';
+    output += '   numbers (see table)\n';
+    output += '2. Add message digit +\n';
+    output += '   key digit (mod 10)\n';
+    output += '3. Send only ciphertext\n';
+    output += '4. DESTROY this copy\n\n';
+    
+    output += 'TO DECRYPT:\n';
+    output += '1. Subtract key from\n';
+    output += '   ciphertext (mod 10)\n';
+    output += '2. Convert to letters\n';
+    output += '3. DESTROY this copy\n\n';
+    
+    output += 'ALPHABET (2 digits):\n';
+    output += 'A=00 B=01 C=02 D=03\n';
+    output += 'E=04 F=05 G=06 H=07\n';
+    output += 'I=08 J=09 K=10 L=11\n';
+    output += 'M=12 N=13 O=14 P=15\n';
+    output += 'Q=16 R=17 S=18 T=19\n';
+    output += 'U=20 V=21 W=22 X=23\n';
+    output += 'Y=24 Z=25 SPACE=26\n\n';
+    
+    output += 'EXAMPLE:\n';
+    output += 'Letter: H = 07\n';
+    output += 'Key:    83\n';
+    output += 'Add:    0+8=8, 7+3=10\n';
+    output += 'Mod 10: 8, 0\n';
+    output += 'Send:   80\n\n';
+    
+    output += '===========================\n';
+    output += 'KEY DIGITS:\n';
+    output += '===========================\n\n';
+  } else {
+    // Message worksheet
+    output += 'INSTRUCTIONS:\n';
+    output += '1. Convert your message\n';
+    output += '   to numbers using the\n';
+    output += '   alphabet (2 digits)\n';
+    output += '2. Write plaintext\n';
+    output += '   numbers below\n';
+    output += '3. Add OTP key digit +\n';
+    output += '   message digit (mod 10)\n';
+    output += '4. Send only encrypted\n';
+    output += '   numbers (ciphertext)\n';
+    output += '5. DESTROY after use\n\n';
+    output += 'TO DECRYPT RECEIVED:\n';
+    output += '1. Get ciphertext from\n';
+    output += '   sender\n';
+    output += '2. Subtract key digit\n';
+    output += '   from cipher (mod 10)\n';
+    output += '3. Convert 2-digit pairs\n';
+    output += '   back to letters\n';
+    output += '4. DESTROY this copy\n\n';
+    output += 'EXAMPLE ENCRYPT:\n';
+    output += 'Letter: H = 07\n';
+    output += 'Key:    83\n';
+    output += 'Add:    0+8=8, 7+3=10\n';
+    output += 'Mod 10: 8, 0\n';
+    output += 'Send:   80\n\n';
+    output += 'EXAMPLE DECRYPT:\n';
+    output += 'Cipher: 80\n';
+    output += 'Key:    83\n';
+    output += 'Sub:    8-8=0, 0-3=-3\n';
+    output += 'Mod 10: 0, 7\n';
+    output += 'Letter: 07 = H\n\n';
+    output += 'OTP KEY #: _______________\n\n';
+    output += '===========================\n';
+    output += 'PLAINTEXT NUMBERS:\n';
+    output += '===========================\n\n';
+  }
+  
+  // Generate random digits with enhanced entropy
+  const randomBytes = getEnhancedRandomBytes(digits);
+  const pad = Array.from(randomBytes, b => b % 10).join('');
+  
+  // Format in groups of 5, 3 groups per line (15 digits per line)
+  const groups = pad.match(/.{1,5}/g) || [];
+  
+  for (let j = 0; j < groups.length; j++) {
+    const lineNum = j + 1;
+    const num = String(lineNum).padStart(3, ' ');
+    const keyDigits = isKey ? groups[j] : '_____';
+    output += `${num}. ${keyDigits}`;
+    
+    // New line after every 3 groups (or at end)
+    if ((j + 1) % 3 === 0 || j === groups.length - 1) {
+      output += '\n';
+    } else {
+      output += ' ';
+    }
+  }
+  
+  output += '\n';
+  
+  if (!isKey) {
+    output += '===========================\n';
+    output += '!!! DESTROY AFTER USE !!!\n';
+    output += '===========================\n';
+  } else {
+    output += '===========================\n';
+    output += `End OTP #${padNum} Copy ${copy}\n`;
+    output += '===========================\n';
+  }
+  
+  return output;
+}
+
+function generateOTP(isKey) {
+  const start = parseInt(document.getElementById('otpnum').value) || 1;
+  const count = parseInt(document.getElementById('nkeys').value) || 1;
+  
+  let fullOutput = '';
+  
+  for (let i = 0; i < count; i++) {
+    const padNum = start + i;
+    
+    // Generate 2 copies per sheet
+    for (let copy = 1; copy <= 2; copy++) {
+      if (fullOutput) fullOutput += '\n'.repeat(6);
+      fullOutput += generateOTPCopy(padNum, copy, isKey);
+    }
+  }
+  
+  return fullOutput;
+}
+
+function generate(isKey) {
+  currentType = isKey ? 'key' : 'message';
+  
+  // Get current OTP number
+  const currentOTP = parseInt(document.getElementById('otpnum').value) || 1;
+  const count = parseInt(document.getElementById('nkeys').value) || 1;
+  
+  // Generate content
+  currentContent = generateOTP(isKey);
+  
+  // Auto-increment the OTP number for next generation
+  const nextOTP = currentOTP + count;
+  const newOTP = nextOTP > 999 ? 1 : nextOTP;
+  document.getElementById('otpnum').value = newOTP;
+  
+  // Save to localStorage
+  lastSavedOTPNum = newOTP;
+  localStorage.setItem('otpLastNumber', newOTP);
+  
+  // Auto-generate PDF and open print dialog
+  createPDF(currentOTP, count, isKey);
+}
+
+function createPDF(startNum, count, isKey) {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: [80, 297]  // Initial page - will be replaced
+  });
+  
+  doc.setFont('courier', 'normal');
+  doc.setFontSize(8.5);
+  
+  const marginLeft = 2.5;
+  const marginTop = 6;
+  const marginBottom = 6;
+  const lineHeight = 3.5;
+  
+  let isFirstPage = true;
+  
+  // Generate each copy on its own page
+  for (let i = 0; i < count; i++) {
+    const padNum = startNum + i;
+    
+    // For key sheets: generate 2 key copies + 2 message worksheets
+    // For message sheets: just generate 2 message worksheets
+    const copies = isKey ? [
+      { copy: 1, type: true },   // Key copy 1
+      { copy: 2, type: true },   // Key copy 2
+      { copy: 1, type: false },  // Message worksheet 1
+      { copy: 2, type: false }   // Message worksheet 2
+    ] : [
+      { copy: 1, type: false },  // Message worksheet 1
+      { copy: 2, type: false }   // Message worksheet 2
+    ];
+    
+    for (let item of copies) {
+      // Generate content for this copy
+      const copyContent = generateOTPCopy(padNum, item.copy, item.type);
+      const lines = copyContent.split('\n');
+      
+      // Calculate exact height needed for this copy
+      const contentHeight = lines.length * lineHeight;
+      const pageHeight = marginTop + contentHeight + marginBottom;
+      
+      // Add new page with custom height
+      if (isFirstPage) {
+        // Replace the initial page
+        doc.deletePage(1);
+        doc.addPage([80, pageHeight]);
+        isFirstPage = false;
+      } else {
+        doc.addPage([80, pageHeight]);
+      }
+      
+      // Print content on this page
+      let y = marginTop;
+      for (let line of lines) {
+        doc.text(line, marginLeft, y);
+        y += lineHeight;
+      }
+      
+      // Add cut line at bottom of page (except last page)
+      const isLastPage = (i === count - 1) && (item === copies[copies.length - 1]);
+      if (!isLastPage) {
+        const cutY = pageHeight - 3;
+        doc.setFontSize(7);
+        doc.text('CUT HERE', marginLeft, cutY);
+        
+        // Draw scissor symbol and dashed line
+        const scissorX = 20;
+        doc.text('---', scissorX, cutY);
+        doc.text('---', scissorX + 15, cutY);
+        doc.text('---', scissorX + 30, cutY);
+        doc.text('---', scissorX + 45, cutY);
+        
+        doc.setFontSize(8.5);
+      }
+    }
+  }
+  
+  // Convert to blob and open in new window
+  const pdfBlob = doc.output('blob');
+  const pdfUrl = URL.createObjectURL(pdfBlob);
+  
+  const printWindow = window.open(pdfUrl, '_blank');
+  
+  if (printWindow) {
+    printWindow.addEventListener('load', function() {
+      setTimeout(() => {
+        printWindow.print();
+      }, 250);
+    });
+  } else {
+    alert('Please allow popups to print the PDF');
+  }
+}
+</script>
+
+</body>
+</html>
